@@ -47,7 +47,7 @@ class DataSet:
         
         # If legend labels exist, split the data by the first index value (assumes len(legend_labels) == len(self.data.index.levels))
         if legend_labels != None and hasattr(self.data.index, 'levels') and len(legend_labels) == len(self.data.index.levels):
-            d = pd.Series(self.data['An_1'], index = self.data.index).unstack(level=0).as_matrix().T
+            d = pd.Series(self.data[col], index = self.data.index).unstack(level=0).as_matrix().T
             d = [x[~np.isnan(x)] for x in d]
         else:
             d = self.data[col].dropna()
