@@ -27,17 +27,30 @@ class DataSet:
         self.data.columns = [x.decode('utf-8') for x in self.metadata.varNames]
 
     def get_var_label(self, var):
-        return self.metadata.varLabels[bytes(var, encoding='utf-8')].decode('windows-1252')
+        key = bytes(var, encoding='utf-8')
+        if key in self.metadata.varLabels:
+            return self.metadata.varLabels[bytes(var, encoding='utf-8')].decode('windows-1252')
+        else:
+            return None
 
     def get_value_labels(self, var):
-        return dict([(k, v.decode('windows-1252')) for k, v in self.metadata.valueLabels[bytes(var, encoding='windows-1252')].items()])
+        key = bytes(var, encoding='windows-1252')
+        if key in self.metadata.valueLabels:
+            return dict([(k, v.decode('windows-1252')) for k, v in self.metadata.valueLabels[key].items()])
+        else:
+            return None
 
     def freq_table(self, var):
-        return pd.DataFrame(list(self.get_value_labels(var).items()), columns=['index', self.get_var_label(var)]) \
-                .set_index('index', drop=True) \
-                .merge(pd.DataFrame(self.data[var].value_counts().sort_index()) \
-                       .rename(columns = {var: 'Frequency'}), \
-                       left_index = True, right_index = True) \
+        value_labels = self.get_value_labels(var)
+        var_label = self.get_var_label(var)
+        if value_labels != None:
+            return pd.DataFrame(list(self.get_value_labels(var).items()), columns=['index', self.get_var_label(var)]) \
+                    .set_index('index', drop=True) \
+                    .merge(pd.DataFrame(self.data[var].value_counts().sort_index()) \
+                           .rename(columns = {var: 'Frequency'}), \
+                           left_index = True, right_index = True)
+        else:
+            return pd.DataFrame(self.data[var].value_counts().sort_index())
 
 
     def gen_histogram(self, col, legend_labels = None):
