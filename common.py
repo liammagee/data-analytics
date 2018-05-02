@@ -53,18 +53,34 @@ class DataSet:
             return pd.DataFrame(self.data[var].value_counts().sort_index())
 
 
-    def gen_histogram(self, col, legend_labels = None):
+    def gen_histogram(self, cols, stacked = True, legend_labels = None, normalise = False, use_weights = True):
+        
+        # For cases where weights are included, get the first column along
+        col = cols[0]
+
+        # Set up the plot
         fig, ax = plt.subplots()
         labels = self.get_value_labels(col).values()
         bin_length = len(labels)
         
         # If legend labels exist, split the data by the first index value (assumes len(legend_labels) == len(self.data.index.levels))
         if legend_labels != None and hasattr(self.data.index, 'levels') and len(legend_labels) == len(self.data.index.levels):
-            d = pd.Series(self.data[col], index = self.data.index).unstack(level=0).as_matrix().T
-            d = [x[~np.isnan(x)] for x in d]
+            d = pd.DataFrame(self.data[cols].dropna(), index = self.data.index).unstack(level=0).as_matrix().T
+            d = np.array([x[~np.isnan(x)] for x in d])
         else:
-            d = self.data[col].dropna()
-        n, bins, patches = ax.hist(d, bins = np.arange(1, bin_length + 2) - 0.5, rwidth = 0.8, stacked=True, label = legend_labels)
+            d = self.data[cols].dropna()
+        values, weights = np.split(d, 2)
+        if use_weights == False:
+            weights = [np.ones(len(x)) for x in weights]
+        if stacked == False and normalise == True:
+            hists = [np.histogram(x, np.arange(1, bin_length + 2) - 0.5, weights = weights[i]) for i, x in enumerate(values)]
+            hists_norm = [(100. * x / np.sum(x), y) for (x, y) in hists]
+            offset = 1. / (len(hists_norm) + 1)
+            [ax.bar(x[1][:-1] + offset * i, x[0], width = 0.3, label = legend_labels[i]) for i, x in enumerate(hists_norm)];
+            bins = np.array(hists)[0, 1]
+            n = [np.round(x[0], 1) for x in hists_norm] # np.array(hists)[:, 0]
+        else:
+            n, bins, patches = ax.hist(values, weights = weights, bins = np.arange(1, bin_length + 2) - 0.5, rwidth = 0.8, stacked=stacked, label = legend_labels)
 
         # Add grid
         ax.grid(True)
@@ -72,6 +88,11 @@ class DataSet:
         # Legend
         if legend_labels != None:
             ax.legend(prop={'size': 10})
+
+        # Apply colours
+        cm = plt.get_cmap('Blues')
+        #for c, patch in zip(bns, patches):
+        #    patch.set_facecolor(cm(c))
 
         bin_centers = 0.5 * (bins[:-1] + bins[1:])
         # scale values to interval [0,1]
@@ -83,17 +104,15 @@ class DataSet:
         bns *= (1.0 - scale_inc * 2.)
         bns += scale_inc
 
-        # Apply colours
-        cm = plt.get_cmap('Blues')
-        #for c, patch in zip(bns, patches):
-        #    patch.set_facecolor(cm(c))
-
         # Add title and axes
         plt.title(self.get_var_label(col), loc='left')
         ax.set_xticks(np.arange(1, bin_length + 1))
         ax.set_xticklabels(self.get_value_labels(col).values(), rotation=45, ha='right')
         plt.xlabel('Level')
-        plt.ylabel('No. of responses')
+        if normalise == True:
+            plt.ylabel('% of responses')
+        else:
+            plt.ylabel('No. of responses')
 
         # Tweak spacing to prevent clipping of ylabel
     #     fig.tight_layout()
