@@ -40,23 +40,32 @@ class DataSet:
         else:
             return None
 
-    def freq_table(self, var):
+    def freq_table(self, var, weights = True, weight_col = 'WEIGHT'):
         value_labels = self.get_value_labels(var)
         var_label = self.get_var_label(var)
         if value_labels != None:
             return pd.DataFrame(list(self.get_value_labels(var).items()), columns=['index', self.get_var_label(var)]) \
                     .set_index('index', drop=True) \
-                    .merge(pd.DataFrame(self.data[var].value_counts().sort_index()) \
-                           .rename(columns = {var: 'Frequency'}), \
+                    .merge(pd.DataFrame({ 'Freq.': self.data[var].value_counts().sort_index(),
+                                          'Freq. Rel.': np.round(100. * self.data[var].value_counts().sort_index() / np.size(self.data[var]), 1),
+                                          'Freq. Weighted': self.data.groupby(var).apply(lambda x: np.sum(x[weight_col])),
+                                          'Freq. Weighted Rel.': np.round(100. * self.data.groupby(var).apply(lambda x: np.sum(x[weight_col])) / np.sum(self.data[weight_col]), 1),
+                                        }), \
                            left_index = True, right_index = True)
         else:
             return pd.DataFrame(self.data[var].value_counts().sort_index())
 
 
     def gen_histogram(self, cols, stacked = True, legend_labels = None, normalise = False, use_weights = True):
+        import tabulate
+        from IPython.display import HTML, display
         
         # For cases where weights are included, get the first column along
         col = cols[0]
+        
+        # Print the variable name
+        display(HTML("<strong>"+self.get_var_label(col)+"<strong>"))
+        display(HTML("<br/>"))
 
         # Set up the plot
         fig, ax = plt.subplots()
@@ -69,7 +78,9 @@ class DataSet:
             d = np.array([x[~np.isnan(x)] for x in d])
         else:
             d = self.data[cols].dropna()
+            
         values, weights = np.split(d, 2)
+        
         if use_weights == False:
             weights = [np.ones(len(x)) for x in weights]
         if stacked == False and normalise == True:
@@ -105,7 +116,7 @@ class DataSet:
         bns += scale_inc
 
         # Add title and axes
-        plt.title(self.get_var_label(col), loc='left')
+        # plt.title(self.get_var_label(col), loc='left')
         ax.set_xticks(np.arange(1, bin_length + 1))
         ax.set_xticklabels(self.get_value_labels(col).values(), rotation=45, ha='right')
         plt.xlabel('Level')
@@ -118,12 +129,14 @@ class DataSet:
     #     fig.tight_layout()
         plt.show()
         
-        import tabulate
-        from IPython.display import HTML, display
+        # Generate the frequency table
+        display(HTML("<br/>"))
+        display(HTML("Responses, in percentages"))
         df = pd.DataFrame(np.asarray(n).T, index=labels)
         if legend_labels == None:
             legend_labels = ['Frequencies'] 
         s = tabulate.tabulate(df, headers=legend_labels, tablefmt='html')
         display(HTML(s))
 
+        display(HTML("<br/>"))
 
